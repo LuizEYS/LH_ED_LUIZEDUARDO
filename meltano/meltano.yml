@@ -1,0 +1,101 @@
+version: 1
+default_environment: dev
+project_id: afc037ab-2983-4e29-8b31-a2b5c7a345ed
+environments:
+- name: dev
+  env:
+    DBT_TARGET_PATH: target
+- name: staging
+- name: prod
+plugins:
+  extractors:
+  - name: tap-postgres
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/tap-postgres.git
+    config:
+      host: 192.168.1.5
+      port: 5433
+      user: postgres
+      database: airflow_db
+      default_replication_method: INCREMENTAL
+      filter_schemas:
+      - public
+      sqlalchemy_url: postgresql+psycopg2://postgres:postgres@192.168.1.5:5433/airflow_db
+  - name: tap-gitlab
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/tap-gitlab.git
+    config:
+      projects: meltano/meltano meltano/tap-gitlab
+      start_date: '2024-01-26T00:00:00Z'
+    select:
+    - commits.id
+    - commits.project_id
+    - commits.created_at
+    - commits.author_name
+    - commits.message
+    - tags.*
+    - '!*.*_url'
+  - name: tap-csv
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/tap-csv.git
+    config:
+      files:
+        - entity: order_details
+          path: /root/meltano/order_details.csv
+          keys:
+          - order_id
+          - product_id
+          encoding: utf-8
+  - name: tap-singer-jsonl
+    variant: kgpayne
+    pip_url: tap-singer-jsonl
+  loaders:
+  - name: target-jsonl
+    variant: andyh1203
+    pip_url: target-jsonl
+    config:
+      do_timestamp_file: false
+      destination_path: /root/meltano/output/
+  - name: target-postgres
+    variant: meltanolabs
+    pip_url: meltanolabs-target-postgres
+    config:
+      ATTRIBUTE: VALUE
+      user: postgres
+      database: airflow_db
+      add_record_metadata: true
+      host: 192.168.1.5
+      port: 5433
+      default_target_schema: analytics
+      sqlalchemy_url: postgresql+psycopg2://postgres:postgres@192.168.1.5:5433/airflow_db
+  - name: target-csv
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/target-csv.git
+  - name: target-singer-jsonl
+    variant: kgpayne
+    pip_url: target-singer-jsonl
+    config:
+      local:
+        folder: /root/meltano/output/taks/
+  orchestrators:
+  - name: airflow
+    variant: apache
+    pip_url: apache-airflow==2.10.4 --constraint 
+      https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-${MELTANO__PYTHON_VERSION}.txt
+    config:
+      core:
+        sql_alchemy_conn: postgresql+psycopg2://postgres:postgres@192.168.1.5:5433/airflow_db
+  files:
+  - name: files-airflow
+    variant: meltano
+    pip_url: git+https://github.com/meltano/files-airflow.git
+  utilities:
+  - name: dbt-postgres
+    variant: dbt-labs
+    pip_url: dbt-core dbt-postgres meltano-dbt-ext~=0.3.0
+    config:
+      host: 192.168.1.5
+      port: 5433
+      user: postgres
+      dbname: airflow_db
+      schema: analytics

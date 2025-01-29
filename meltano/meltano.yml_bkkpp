@@ -1,0 +1,18 @@
+version: 1
+default_environment: dev
+project_id: 4170b74c-6549-44b0-92d2-ff097b11b990
+environments:
+- name: dev
+- name: staging
+- name: prod
+plugins:
+  extractors:
+  - name: tap-github
+    variant: meltanolabs
+    pip_url: meltanolabs-tap-github
+    config:
+      start_date: '2025-01-26'
+  loaders:
+  - name: target-jsonl
+    variant: andyh1203
+    pip_url: target-jsonl
